@@ -111,6 +111,42 @@ impl fmt::Display for Transaction {
     }
 }
 
+/// Represents a multi-party transaction where one or more parties (debtors) owes one or more
+/// parties (creditors) the amount specified.
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct MultiPartyTransaction {
+    debtors: Vec<String>,
+    creditors: Vec<String>,
+    amount: i32,
+}
+
+impl MultiPartyTransaction {
+    pub fn new(
+        debtors: Vec<String>,
+        creditors: Vec<String>,
+        amount: i32,
+    ) -> Result<Self, ParseAmountError> {
+        if amount <= 0 {
+            return Err(ParseAmountError { amount: amount });
+        };
+        return Ok(MultiPartyTransaction {
+            debtors,
+            creditors,
+            amount,
+        });
+    }
+}
+
+impl fmt::Display for MultiPartyTransaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?} owes {:?} {}",
+            self.debtors, self.creditors, self.amount
+        ) //TODO: Fix
+    }
+}
+
 #[derive(Debug)]
 pub struct ParseAmountError {
     amount: i32,
@@ -149,6 +185,34 @@ impl Ledger {
         *self.map.entry(transaction.creditor).or_insert(0) += transaction.amount;
     }
 
+    pub fn add_multi_party_transaction(&mut self, transaction: MultiPartyTransaction) {
+        let num_debtors = transaction.debtors.len() as i32;
+        let debt_amount = transaction.amount / num_debtors;
+        let debt_total = num_debtors * debt_amount;
+
+        let num_creditors = transaction.creditors.len() as i32;
+        let credit_amount = transaction.amount / num_creditors;
+        let credit_total = num_creditors * credit_amount;
+
+        if debt_total > credit_total {
+            *self
+                .map
+                .entry(transaction.creditors[0].clone())
+                .or_insert(0) += debt_total - credit_total;
+        } else if credit_total > debt_total {
+            *self.map.entry(transaction.debtors[0].clone()).or_insert(0) -=
+                credit_total - debt_total;
+        }
+
+        for debtor in transaction.debtors {
+            *self.map.entry(debtor).or_insert(0) -= debt_amount;
+        }
+
+        for creditor in transaction.creditors {
+            *self.map.entry(creditor).or_insert(0) += credit_amount;
+        }
+    }
+
     /// Returns the smallest possible set of  transactions that will resolve all debts.
     /// This ranges between n/2 (best case) and n-1 (worst case), where n is the number of
     /// debtors and creditors.
@@ -160,6 +224,7 @@ impl Ledger {
             }
         }
         payments.append(&mut self.clear_all_entries());
+        // TODO - test that all creditors and debtors are zero, and panic otherwise.
         return payments;
     }
 
@@ -334,6 +399,36 @@ mod tests {
         }
     }
 
+    // Multi Party Transaction Tests
+    #[test]
+    fn can_handle_debtor_rounding() {
+        let transaction = MultiPartyTransaction::new(
+            vec!["A".to_string(), "B".to_string(), "C".to_string()],
+            vec!["D".to_string()],
+            10,
+        )
+        .unwrap();
+        let mut ledger = Ledger::new();
+        ledger.add_multi_party_transaction(transaction);
+        let ledger_balance = ledger.to_vector().into_iter().fold(0, |acc, x| acc + x.1);
+        assert_eq!(ledger_balance, 0);
+    }
+
+    #[test]
+    fn can_handle_creditor_rounding() {
+        let transaction = MultiPartyTransaction::new(
+            vec!["A".to_string()],
+            vec!["B".to_string(), "C".to_string(), "D".to_string()],
+            10,
+        )
+        .unwrap();
+        let mut ledger = Ledger::new();
+        ledger.add_multi_party_transaction(transaction);
+        let ledger_balance = ledger.to_vector().into_iter().fold(0, |acc, x| acc + x.1);
+        assert_eq!(ledger_balance, 0);
+    }
+
+    // Transaction Tests
     #[test]
     fn can_create_positive_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), 1) {
