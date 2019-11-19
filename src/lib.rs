@@ -1,15 +1,90 @@
+//! Track and settle debts between parties with the fewest transactions.
+//!
+//! Debtsolves gives you two structs - Transactions, which track payments that
+//! have been made or need to be made, and a Ledger which can store and balance
+//! the current states of credits and debits between everyone.
+//!
+//! # Use
+//!
+//! Transactions must be initialized with a debtor, creditor and positive amount.
+//! For example, if Bob borrows 10 from Alice, you would track that as:
+//!
+//! ```edition2018
+//! transaction = Transaction::new(debtor: "Alice".to_string, creditor: "Bob".to_string, amount: 10)
+//! ```
+//!
+//! Legders are created empty, and you can add transactions to them to track the current state of
+//! debtors and creditors.   
+//!
+//! ```edition2018
+//! ledger = Ledger::new()
+//! ledger.add_transaction(transaction);
+//! ```
+//!
+//! You can inspect the state of the ledger at any point by calling to_vector on it to get the
+//! list of debtors and creditors as a vector of tuples
+//!
+//! ```edition2018
+//! for transaction in ledger.to_vector(){
+//!     println!("{}", transaction)
+//! };
+//! // (Alice, Bob, 10)
+//! ```
+//!
+//! Once all the debts are tracked, and you want to figure out the fastest way for debtors to pay
+//! back creditors, you can simply call settle:
+//!
+//! ```edition2018
+//! let payments = ledger.settle(3);
+//! ```
+//!   
+//!
+//! ### Examples
+//! ```edition2018
+//!
+//! use debtsolver::Ledger;
+//! use debtsolver::Transaction;
+//!
+//! fn main() {
+//!     let mut ledger = Ledger::new();
+//!
+//!     // Let's say that:
+//!     // Alice paid 20 for Bob's lunch
+//!     // Bob paid 20 for Charlie's dinner the next day.
+//!     ledger.add_transaction(Transaction::new("Alice".to_string(), "Bob".to_string(), 20).unwrap());
+//!     ledger.add_transaction(Transaction::new("Bob".to_string(), "Charlie".to_string(), 20).unwrap());
+//!
+//!     for payment in ledger.settle(3) {
+//!         println!("{}", payment)
+//!     }
+//!     // Debtsolver will resolve this with one payment:
+//!     // Alice owes Charlie 2
+//!
+//!
+//!     // Now lets say that:
+//!     //   Bob paid for Alice's breakfast (20).
+//!     //   Charlie paid for Bob's lunch (50).
+//!     //   Alice paid for Charlie's dinner (35).
+//!     ledger.add_transaction(Transaction::new("Alice".to_string(), "Bob".to_string(), 20).unwrap());
+//!     ledger.add_transaction(Transaction::new("Bob".to_string(), "Charlie".to_string(), 50).unwrap());
+//!     ledger.add_transaction(Transaction::new("Charlie".to_string(), "Alice".to_string(), 35).unwrap());
+//!    
+//!
+//!     for payment in ledger.settle(3) {
+//!         println!("{}", payment)
+//!     }
+//!     //Debtsolver will resolve this with just two payments:
+//!     // Bob owes Alice 15
+//!     // Bob owes Charlie 15
+//! ```
+
 use itertools::Itertools;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
-/*
-* Add RustDoc examples: https://rust-lang.github.io/api-guidelines/documentation.html (4)
-* Add documentation for public things
-*/
-
-// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
+/// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Transaction {
     debtor: String,
@@ -53,29 +128,30 @@ impl fmt::Display for ParseAmountError {
     }
 }
 
-// Represents a zero-sum ledger which tracks the current state of who owes money, and who is owed money.
-// The sum of all balances must always add up to zero, since each debtor has an equivalent creditor.
+/// Represents a zero-sum ledger which tracks the current state of who owes money, and who is owed money.
+/// The sum of all balances must always add up to zero, since each debtor has an equivalent creditor.
 #[derive(Debug)]
 pub struct Ledger {
     map: HashMap<String, i32>,
 }
 
 impl Ledger {
+    /// Creates a new Ledger
     pub fn new() -> Ledger {
         return Ledger {
             map: HashMap::new(),
         };
     }
 
+    /// Accepts a transaction and updates debtor and creditor balances in the ledger.
     pub fn add_transaction(&mut self, transaction: Transaction) {
         *self.map.entry(transaction.debtor).or_insert(0) -= transaction.amount;
         *self.map.entry(transaction.creditor).or_insert(0) += transaction.amount;
     }
 
-    // Settles the ledger by creating a set of payments will payback creditors in the fewest
-    // transactions. Also clears all current balances in the ledger. The best possible set
-    // of payments is n/2 in size and the worst possible case is n-1, where n is the number of
-    // people in the ledger.
+    /// Returns the smallest possible set of  transactions that will resolve all debts.
+    /// This ranges between n/2 (best case) and n-1 (worst case), where n is the number of
+    /// debtors and creditors.
     pub fn settle(&mut self, group_size: usize) -> Vec<Transaction> {
         let mut payments: Vec<Transaction> = Vec::new();
         if group_size > 0 {

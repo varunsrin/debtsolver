@@ -1,7 +1,6 @@
 # Debtsolver
 
-Debtsolver is a library that can track debts incurred between different parties 
-and settle with the fewest transactions between parties. 
+Track and settle debts between parties with the fewest transactions. 
 
 ## Example
 
@@ -40,4 +39,4 @@ fn main() {
     // Debtsolver will resolve this with just two payments:
     // Bob owes Alice 15
     // Bob owes Charlie 15
-}```rust
+}
