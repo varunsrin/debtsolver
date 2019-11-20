@@ -1,6 +1,7 @@
 # Change Log
 
 ## [Unreleased]
+* Transaction API: Multiparty debts in 1 transaction. (e.g. Alice & Bob paid 50 for a dinner shared between Alice, Bob, Charlie and Danielle)
 
 ## [0.1.0] - 2019-11-19
 
@@ -9,7 +10,6 @@
 ## [Planned]
 
 ### v0.2.0
-* Transaction API: Multiparty debts in 1 transaction. (e.g. Alice & Bob paid 50 for a dinner shared between Alice, Bob, Charlie and Danielle)
 * Settle API: Auto-detect best group-size, and provide API for manual sizing.
 * Use a rich 'Money' Type that handles rounding and currency metadata. 
 
