@@ -224,7 +224,6 @@ impl Ledger {
             }
         }
         payments.append(&mut self.clear_all_entries());
-        // TODO - test that all creditors and debtors are zero, and panic otherwise.
         return payments;
     }
 
@@ -237,6 +236,14 @@ impl Ledger {
             ledger_entries.push((key.clone(), *val));
         }
         return ledger_entries;
+    }
+
+    fn panic_unless_empty(&self) {
+        for (_, val) in self.map.iter() {
+            if *val > 0 {
+                panic!();
+            }
+        }
     }
 
     // Settles combinations of a specified size. A combination is a set of ledger balances that
@@ -265,7 +272,9 @@ impl Ledger {
     // Settles all entries left in the ledger with a balance, in random order.
     fn clear_all_entries(&mut self) -> Vec<Transaction> {
         let (debtor_keys, creditor_keys) = self.debtor_and_creditor_keys();
-        return self.clear_given_keys(debtor_keys, creditor_keys);
+        let transactions = self.clear_given_keys(debtor_keys, creditor_keys);
+        self.panic_unless_empty();
+        return transactions;
     }
 
     // Settles a specified list of debtors and creditors against in other, in random order.
@@ -399,6 +408,14 @@ mod tests {
         }
     }
 
+    #[test]
+    #[should_panic]
+    fn panics_when_settling_unbalanced_ledger() {
+        let mut ledger = Ledger::new();
+        ledger.map.entry("A".to_string()).or_insert(10);
+        ledger.settle(2);
+    }
+
     // Multi Party Transaction Tests
     #[test]
     fn can_handle_debtor_rounding() {
@@ -452,5 +469,4 @@ mod tests {
             Err(_) => assert!(true),
         };
     }
-
 }
