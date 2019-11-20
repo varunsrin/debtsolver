@@ -141,9 +141,11 @@ impl fmt::Display for MultiPartyTransaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:?} owes {:?} {}",
-            self.debtors, self.creditors, self.amount
-        ) //TODO: Fix
+            "{} owes {} to {}",
+            self.debtors.join(","),
+            self.amount,
+            self.creditors.join(","),
+        )
     }
 }
 
