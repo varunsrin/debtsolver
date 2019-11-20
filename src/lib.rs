@@ -84,6 +84,19 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
+
+// Money Class -v1 
+// pub fn new(amount: i32, currency: String)
+// pub fn =  (amount & currency)
+// pub fn +  (test if money, currency)
+// pub fn - (test if money, currency)
+// pub fn * (money or sdcalar)
+// pub fn / (money or scalar)
+// pub fn compare 
+// pub fn allocate_to(self, number) -> [Money] 
+// pub fn Display
+
+
 /// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Transaction {
