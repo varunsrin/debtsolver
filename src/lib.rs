@@ -84,18 +84,64 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
-
-// Money Class -v1 
-// pub fn new(amount: i32, currency: String)
 // pub fn =  (amount & currency)
 // pub fn +  (test if money, currency)
 // pub fn - (test if money, currency)
 // pub fn * (money or sdcalar)
 // pub fn / (money or scalar)
-// pub fn compare 
-// pub fn allocate_to(self, number) -> [Money] 
-// pub fn Display
+// pub fn compare
 
+#[derive(Debug, PartialEq)]
+pub struct Money {
+    amount: i32,
+    currency: String,
+}
+
+impl fmt::Display for Money {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.amount, self.currency)
+    }
+}
+
+impl Money {
+    pub fn new(amount: i32, currency: String) -> Money {
+        // test that currency is valid.
+        // accept amounts as string, parse to decimals, panic if wrong.
+        Money { amount, currency }
+    }
+
+    pub fn allocate_to(self, number: i32) -> Vec<Money> {
+        let ratios: Vec<i32> = (0..number).map(|_| 1).collect();
+        self.allocate(ratios)
+    }
+
+    pub fn allocate(self, ratios: Vec<i32>) -> Vec<Money> {
+        if ratios.is_empty() {
+            panic!();
+        }
+
+        let mut remainder = self.amount;
+        let ratio_total: i32 = ratios.iter().sum();
+        let mut allocations: Vec<Money> = Vec::new();
+
+        for ratio in ratios {
+            if ratio <= 0 {
+                panic!();
+            }
+            let share = self.amount * ratio / ratio_total;
+            allocations.push(Money::new(share, self.currency.clone()));
+            remainder -= share;
+        }
+
+        let mut i = 0;
+        while remainder > 0 {
+            allocations[i as usize].amount += 1;
+            remainder -= 1;
+            i += 1;
+        }
+        allocations
+    }
+}
 
 /// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -234,7 +280,7 @@ impl Ledger {
     pub fn settle(&mut self, group_size: usize) -> Vec<Transaction> {
         let mut payments: Vec<Transaction> = Vec::new();
         if group_size > 0 {
-            for x in 1..group_size + 1 {
+            for x in 1..=group_size {
                 payments.append(&mut self.settle_combinations(x));
             }
         }
@@ -483,5 +529,48 @@ mod tests {
             Ok(_) => assert!(false),
             Err(_) => assert!(true),
         };
+    }
+
+    // Money Tests
+    #[test]
+    fn allocate() {
+        let money = Money::new(11, "USD".to_string());
+        let allocs = money.allocate(vec![1, 1, 1]);
+        let expected_results = vec![
+            Money::new(4, "USD".to_string()),
+            Money::new(4, "USD".to_string()),
+            Money::new(3, "USD".to_string()),
+        ];
+        assert_eq!(expected_results, allocs);
+    }
+
+    #[test]
+    #[should_panic]
+    fn allocate_panics_if_empty() {
+        Money::new(1, "USD".to_string()).allocate(Vec::new());
+    }
+
+    #[test]
+    #[should_panic]
+    fn allocate_panics_any_ratio_is_zero() {
+        Money::new(1, "USD".to_string()).allocate(vec![1, 0]);
+    }
+
+    #[test]
+    fn allocate_to() {
+        let money = Money::new(11, "USD".to_string());
+        let allocs = money.allocate_to(3);
+        let expected_results = vec![
+            Money::new(4, "USD".to_string()),
+            Money::new(4, "USD".to_string()),
+            Money::new(3, "USD".to_string()),
+        ];
+        assert_eq!(expected_results, allocs);
+    }
+
+    #[test]
+    #[should_panic]
+    fn allocate_to_panics() {
+        Money::new(1, "USD".to_string()).allocate_to(0);
     }
 }
