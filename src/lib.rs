@@ -86,7 +86,6 @@ use std::error::Error;
 use std::fmt;
 use std::ops::{Add, Sub};
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct Money {
     amount: i32,
@@ -138,6 +137,18 @@ impl Money {
     pub fn allocate_to(self, number: i32) -> Vec<Money> {
         let ratios: Vec<i32> = (0..number).map(|_| 1).collect();
         self.allocate(ratios)
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.amount == 0
+    }
+
+    pub fn is_positive(self) -> bool {
+        self.amount > 0
+    }
+
+    pub fn is_negative(self) -> bool {
+        self.amount < 0
     }
 
     pub fn allocate(self, ratios: Vec<i32>) -> Vec<Money> {
@@ -589,6 +600,20 @@ mod tests {
             false,
             Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string())
         );
+        // is positive
+        assert_eq!(true, Money::new(1, "USD".to_string()).is_positive());
+        assert_eq!(false, Money::new(0, "USD".to_string()).is_positive());
+        assert_eq!(false, Money::new(-1, "USD".to_string()).is_positive());
+
+        // is zero
+        assert_eq!(true, Money::new(0, "USD".to_string()).is_zero());
+        assert_eq!(false, Money::new(1, "USD".to_string()).is_zero());
+        assert_eq!(false, Money::new(-1, "USD".to_string()).is_zero());
+
+        // is negative
+        assert_eq!(true, Money::new(-1, "USD".to_string()).is_negative());
+        assert_eq!(false, Money::new(1, "USD".to_string()).is_negative());
+        assert_eq!(false, Money::new(0, "USD".to_string()).is_negative());
     }
 
     #[test]
