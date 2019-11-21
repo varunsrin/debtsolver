@@ -80,21 +80,46 @@
 
 use itertools::Itertools;
 use std::cmp;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
+use std::ops::{Add, Sub};
 
-// pub fn =  (amount & currency)
-// pub fn +  (test if money, currency)
-// pub fn - (test if money, currency)
-// pub fn * (money or sdcalar)
-// pub fn / (money or scalar)
-// pub fn compare
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Money {
     amount: i32,
     currency: String,
+}
+
+impl Add for Money {
+    type Output = Money;
+    fn add(self, other: Money) -> Money {
+        Money::new(self.amount + other.amount, self.currency.clone())
+    }
+}
+
+impl Sub for Money {
+    type Output = Money;
+    fn sub(self, other: Money) -> Money {
+        Money::new(self.amount - other.amount, self.currency.clone())
+    }
+}
+
+impl PartialOrd for Money {
+    fn partial_cmp(&self, other: &Money) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Money {
+    fn cmp(&self, other: &Money) -> Ordering {
+        if self.currency != other.currency {
+            panic!();
+        }
+        self.amount.cmp(&other.amount)
+    }
 }
 
 impl fmt::Display for Money {
@@ -532,6 +557,56 @@ mod tests {
     }
 
     // Money Tests
+
+    #[test]
+    fn test_ops() {
+        // Addition
+        assert_eq!(
+            Money::new(2, "USD".to_string()),
+            Money::new(1, "USD".to_string()) + Money::new(1, "USD".to_string())
+        );
+        // Subtraction
+        assert_eq!(
+            Money::new(0, "USD".to_string()),
+            Money::new(1, "USD".to_string()) - Money::new(1, "USD".to_string())
+        );
+        // Greater Than
+        assert_eq!(
+            true,
+            Money::new(2, "USD".to_string()) > Money::new(1, "USD".to_string())
+        );
+        // Less Than
+        assert_eq!(
+            false,
+            Money::new(2, "USD".to_string()) < Money::new(1, "USD".to_string())
+        );
+        // Equals
+        assert_eq!(
+            true,
+            Money::new(1, "USD".to_string()) == Money::new(1, "USD".to_string())
+        );
+        assert_eq!(
+            false,
+            Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string())
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn greater_than_panics_on_different_currencies() {
+        assert!(Money::new(1, "USD".to_string()) < Money::new(1, "GBP".to_string()));
+        assert!(Money::new(1, "USD".to_string()) > Money::new(1, "GBP".to_string()));
+        assert!(Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string()));
+    }
+
+    #[test]
+    #[should_panic]
+    fn less_than_panics_on_different_currencies() {
+        assert!(Money::new(1, "USD".to_string()) < Money::new(1, "GBP".to_string()));
+        assert!(Money::new(1, "USD".to_string()) > Money::new(1, "GBP".to_string()));
+        assert!(Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string()));
+    }
+
     #[test]
     fn allocate() {
         let money = Money::new(11, "USD".to_string());
