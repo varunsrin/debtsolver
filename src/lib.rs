@@ -129,7 +129,6 @@ impl Ord for Money {
 
 impl AddAssign for Money {
     fn add_assign(&mut self, other: Self) {
-        //TODO - should this be immutable?
         *self = Self {
             amount: self.amount + other.amount,
             currency: self.currency.clone(),
@@ -139,7 +138,6 @@ impl AddAssign for Money {
 
 impl SubAssign for Money {
     fn sub_assign(&mut self, other: Self) {
-        //TODO - should this be immutable?
         *self = Self {
             amount: self.amount - other.amount,
             currency: self.currency.clone(),
@@ -155,9 +153,15 @@ impl fmt::Display for Money {
 
 impl Money {
     pub fn new(amount: i32, currency: String) -> Money {
-        // test that currency is valid.
-        // accept amounts as string, parse to decimals, panic if wrong.
         Money { amount, currency }
+    }
+
+    pub fn amount(&self) -> i32 {
+        self.amount
+    }
+
+    pub fn currency(&self) -> &String {
+        &self.currency
     }
 
     pub fn allocate_to(&self, number: i32) -> Vec<Money> {
@@ -222,14 +226,12 @@ macro_rules! transaction {
 impl Transaction {
     pub fn new(debtor: String, creditor: String, amount: Money) -> Result<Self, ParseAmountError> {
         if !amount.is_positive() {
-            return Err(ParseAmountError {
-                amount: amount.amount,
-            }); // TODO: Change ParseAmount to natively accept money.
+            return Err(ParseAmountError { amount });
         };
         Ok(Transaction {
             debtor,
             creditor,
-            amount: amount,
+            amount,
         })
     }
 }
@@ -256,9 +258,7 @@ impl MultiPartyTransaction {
         amount: Money,
     ) -> Result<Self, ParseAmountError> {
         if amount.is_negative() {
-            return Err(ParseAmountError {
-                amount: amount.amount,
-            });
+            return Err(ParseAmountError { amount });
         };
         Ok(MultiPartyTransaction {
             debtors,
@@ -282,7 +282,7 @@ impl fmt::Display for MultiPartyTransaction {
 
 #[derive(Debug)]
 pub struct ParseAmountError {
-    amount: i32,
+    amount: Money,
 }
 
 impl Error for ParseAmountError {}
@@ -317,24 +317,26 @@ impl Ledger {
         *self
             .map
             .entry(transaction.debtor)
-            .or_insert(money!(0, "USD")) -= transaction.amount.clone();
+            .or_insert_with(|| money!(0, "USD")) -= transaction.amount.clone();
         *self
             .map
             .entry(transaction.creditor)
-            .or_insert(money!(0, "USD")) += transaction.amount.clone();
+            .or_insert_with(|| money!(0, "USD")) += transaction.amount.clone();
     }
 
     pub fn add_multi_party_transaction(&mut self, transaction: MultiPartyTransaction) {
         let num_debtors = transaction.debtors.len() as i32;
         let mut debt_shares = transaction.amount.allocate_to(num_debtors);
         for debtor in transaction.debtors {
-            *self.map.entry(debtor).or_insert(money!(0, "USD")) -= debt_shares.pop().unwrap();
+            *self.map.entry(debtor).or_insert_with(|| money!(0, "USD")) -=
+                debt_shares.pop().unwrap();
         }
 
         let num_creditors = transaction.creditors.len() as i32;
         let mut credit_shares = transaction.amount.allocate_to(num_creditors);
         for creditor in transaction.creditors {
-            *self.map.entry(creditor).or_insert(money!(0, "USD")) += credit_shares.pop().unwrap();
+            *self.map.entry(creditor).or_insert_with(|| money!(0, "USD")) +=
+                credit_shares.pop().unwrap();
         }
     }
 
@@ -420,24 +422,21 @@ impl Ledger {
                 // If either one is missing, try grabbing another creditor
                 // If you run out of creditors, grab another debtor and start again.
                 while (creditor_amount.is_positive()) && (debtor_amount.is_negative()) {
-                    let credit_abs = creditor_amount.amount.abs(); // TODO
-                    let debt_abs = debtor_amount.amount.abs(); // TODO
+                    let credit_abs = creditor_amount.amount.abs();
+                    let debt_abs = debtor_amount.amount.abs();
                     let payment_amount = cmp::min(credit_abs, debt_abs);
 
-                    debtor_amount += money!(payment_amount, "USD"); // TODO why does += require a copy/clone?
+                    debtor_amount += money!(payment_amount, "USD");
                     self.map.insert(debtor.clone(), debtor_amount.clone());
 
                     creditor_amount -= money!(payment_amount, "USD");
                     self.map.insert(creditor.clone(), creditor_amount.clone());
 
-                    payments.push(
-                        Transaction::new(
-                            debtor.clone(),
-                            creditor.clone(),
-                            money!(payment_amount, "USD"),
-                        )
-                        .unwrap(),
-                    )
+                    payments.push(transaction!(
+                        debtor.clone(),
+                        creditor.clone(),
+                        money!(payment_amount, "USD")
+                    ));
                 }
             }
         }
