@@ -95,13 +95,13 @@ pub struct Transaction {
 impl Transaction {
     pub fn new(debtor: String, creditor: String, amount: i32) -> Result<Self, ParseAmountError> {
         if amount <= 0 {
-            return Err(ParseAmountError { amount: amount });
+            return Err(ParseAmountError { amount });
         };
-        return Ok(Transaction {
+        Ok(Transaction {
             debtor,
             creditor,
             amount,
-        });
+        })
     }
 }
 
@@ -127,13 +127,13 @@ impl MultiPartyTransaction {
         amount: i32,
     ) -> Result<Self, ParseAmountError> {
         if amount <= 0 {
-            return Err(ParseAmountError { amount: amount });
+            return Err(ParseAmountError { amount });
         };
-        return Ok(MultiPartyTransaction {
+        Ok(MultiPartyTransaction {
             debtors,
             creditors,
             amount,
-        });
+        })
     }
 }
 
@@ -176,9 +176,9 @@ pub struct Ledger {
 impl Ledger {
     /// Creates a new Ledger
     pub fn new() -> Ledger {
-        return Ledger {
+        Ledger {
             map: HashMap::new(),
-        };
+        }
     }
 
     /// Accepts a transaction and updates debtor and creditor balances in the ledger.
@@ -226,7 +226,7 @@ impl Ledger {
             }
         }
         payments.append(&mut self.clear_all_entries());
-        return payments;
+        payments
     }
 
     // Converts the ledger from a hashmap into a set of vector-tuples containing the
@@ -237,7 +237,7 @@ impl Ledger {
         for (key, val) in self.map.iter() {
             ledger_entries.push((key.clone(), *val));
         }
-        return ledger_entries;
+        ledger_entries
     }
 
     fn panic_unless_empty(&self) {
@@ -268,7 +268,7 @@ impl Ledger {
             }
             payments.append(&mut self.clear_given_keys(debtor_keys, creditor_keys));
         }
-        return payments;
+        payments
     }
 
     // Settles all entries left in the ledger with a balance, in random order.
@@ -276,7 +276,7 @@ impl Ledger {
         let (debtor_keys, creditor_keys) = self.debtor_and_creditor_keys();
         let transactions = self.clear_given_keys(debtor_keys, creditor_keys);
         self.panic_unless_empty();
-        return transactions;
+        transactions
     }
 
     // Settles a specified list of debtors and creditors against in other, in random order.
@@ -313,7 +313,7 @@ impl Ledger {
                 }
             }
         }
-        return payments;
+        payments
     }
 
     // Finds zero sum combinations of a given size of ledger entries.
@@ -325,7 +325,7 @@ impl Ledger {
                 zero_sum_combinations.push(item);
             }
         }
-        return zero_sum_combinations;
+        zero_sum_combinations
     }
 
     // Returns vectors of keys of debtors and creditors with an active balance.s
@@ -341,7 +341,7 @@ impl Ledger {
             } else {
             }
         }
-        return (debtors, creditors);
+        (debtors, creditors)
     }
 }
 
