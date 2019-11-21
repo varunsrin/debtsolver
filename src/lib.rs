@@ -92,6 +92,12 @@ pub struct Money {
     currency: String,
 }
 
+macro_rules! money {
+    ($x:expr, $y:expr) => {
+        Money::new($x, $y.to_string())
+    };
+}
+
 impl Add for Money {
     type Output = Money;
     fn add(self, other: Money) -> Money {
@@ -207,9 +213,15 @@ pub struct Transaction {
     amount: Money,
 }
 
+macro_rules! transaction {
+    ($x:expr, $y:expr, $z:expr) => {
+        Transaction::new($x.to_string(), $y.to_string(), $z).unwrap()
+    };
+}
+
 impl Transaction {
     pub fn new(debtor: String, creditor: String, amount: Money) -> Result<Self, ParseAmountError> {
-        if amount.is_negative() {
+        if !amount.is_positive() {
             return Err(ParseAmountError {
                 amount: amount.amount,
             }); // TODO: Change ParseAmount to natively accept money.
@@ -305,30 +317,24 @@ impl Ledger {
         *self
             .map
             .entry(transaction.debtor)
-            .or_insert(Money::new(0, "USD".to_string())) -= transaction.amount.clone();
+            .or_insert(money!(0, "USD")) -= transaction.amount.clone();
         *self
             .map
             .entry(transaction.creditor)
-            .or_insert(Money::new(0, "USD".to_string())) += transaction.amount.clone();
+            .or_insert(money!(0, "USD")) += transaction.amount.clone();
     }
 
     pub fn add_multi_party_transaction(&mut self, transaction: MultiPartyTransaction) {
         let num_debtors = transaction.debtors.len() as i32;
         let mut debt_shares = transaction.amount.allocate_to(num_debtors);
         for debtor in transaction.debtors {
-            *self
-                .map
-                .entry(debtor)
-                .or_insert(Money::new(0, "USD".to_string())) -= debt_shares.pop().unwrap();
+            *self.map.entry(debtor).or_insert(money!(0, "USD")) -= debt_shares.pop().unwrap();
         }
 
         let num_creditors = transaction.creditors.len() as i32;
         let mut credit_shares = transaction.amount.allocate_to(num_creditors);
         for creditor in transaction.creditors {
-            *self
-                .map
-                .entry(creditor)
-                .or_insert(Money::new(0, "USD".to_string())) += credit_shares.pop().unwrap();
+            *self.map.entry(creditor).or_insert(money!(0, "USD")) += credit_shares.pop().unwrap();
         }
     }
 
@@ -417,17 +423,20 @@ impl Ledger {
                     let credit_abs = creditor_amount.amount.abs(); // TODO
                     let debt_abs = debtor_amount.amount.abs(); // TODO
                     let payment_amount = cmp::min(credit_abs, debt_abs);
-                    let payment_money = Money::new(payment_amount, "USD".to_string());
 
-                    debtor_amount += payment_money.clone();
+                    debtor_amount += money!(payment_amount, "USD"); // TODO why does += require a copy/clone?
                     self.map.insert(debtor.clone(), debtor_amount.clone());
 
-                    creditor_amount -= payment_money.clone();
+                    creditor_amount -= money!(payment_amount, "USD");
                     self.map.insert(creditor.clone(), creditor_amount.clone());
 
                     payments.push(
-                        Transaction::new(debtor.clone(), creditor.clone(), payment_money.clone())
-                            .unwrap(),
+                        Transaction::new(
+                            debtor.clone(),
+                            creditor.clone(),
+                            money!(payment_amount, "USD"),
+                        )
+                        .unwrap(),
                     )
                 }
             }
@@ -442,7 +451,7 @@ impl Ledger {
         for item in combinations {
             if item
                 .iter()
-                .fold(Money::new(0, "USD".to_string()), |acc, x| acc + x.1.clone())
+                .fold(money!(0, "USD"), |acc, x| acc + x.1.clone())
                 .is_zero()
             {
                 zero_sum_combinations.push(item);
@@ -480,68 +489,19 @@ mod tests {
         let mut ledger = Ledger::new();
 
         let expected_results = vec![
-            Transaction::new(
-                "A".to_string(),
-                "B".to_string(),
-                Money::new(2, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "C".to_string(),
-                "F".to_string(),
-                Money::new(3, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "D".to_string(),
-                "F".to_string(),
-                Money::new(5, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "E".to_string(),
-                "F".to_string(),
-                Money::new(7, "USD".to_string()),
-            )
-            .unwrap(),
+            transaction!("A", "B", money!(2, "USD")),
+            transaction!("C", "F", money!(3, "USD")),
+            transaction!("D", "F", money!(5, "USD")),
+            transaction!("E", "F", money!(7, "USD")),
         ];
 
         // The worst case match (i.e. random) can accidentially find the optimal solution for small
         // sets, so we repeat to make this very unlikely
         for _ in 0..5 {
-            ledger.add_transaction(
-                Transaction::new(
-                    "A".to_string(),
-                    "B".to_string(),
-                    Money::new(2, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "C".to_string(),
-                    "F".to_string(),
-                    Money::new(3, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "D".to_string(),
-                    "F".to_string(),
-                    Money::new(5, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "E".to_string(),
-                    "F".to_string(),
-                    Money::new(7, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-
+            ledger.add_transaction(transaction!("A", "B", money!(2, "USD")));
+            ledger.add_transaction(transaction!("C", "F", money!(3, "USD")));
+            ledger.add_transaction(transaction!("D", "F", money!(5, "USD")));
+            ledger.add_transaction(transaction!("E", "F", money!(7, "USD")));
             let mut payments = ledger.settle(2);
             payments.sort();
             assert_eq!(payments, expected_results);
@@ -557,95 +517,23 @@ mod tests {
         let mut ledger = Ledger::new();
 
         let expected_results = vec![
-            Transaction::new(
-                "A".to_string(),
-                "D".to_string(),
-                Money::new(3, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "C".to_string(),
-                "D".to_string(),
-                Money::new(4, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "E".to_string(),
-                "B".to_string(),
-                Money::new(10, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "F".to_string(),
-                "B".to_string(),
-                Money::new(17, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "J".to_string(),
-                "K".to_string(),
-                Money::new(20, "USD".to_string()),
-            )
-            .unwrap(),
-            Transaction::new(
-                "U".to_string(),
-                "K".to_string(),
-                Money::new(21, "USD".to_string()),
-            )
-            .unwrap(),
+            transaction!("A", "D", money!(3, "USD")),
+            transaction!("C", "D", money!(4, "USD")),
+            transaction!("E", "B", money!(10, "USD")),
+            transaction!("F", "B", money!(17, "USD")),
+            transaction!("J", "K", money!(20, "USD")),
+            transaction!("U", "K", money!(21, "USD")),
         ];
 
         // The worst case match (i.e. random) can accidentially find the optimal solution for small
         // sets, so we repeat to make this very unlikely
         for _ in 0..5 {
-            ledger.add_transaction(
-                Transaction::new(
-                    "A".to_string(),
-                    "D".to_string(),
-                    Money::new(3, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "C".to_string(),
-                    "D".to_string(),
-                    Money::new(4, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "E".to_string(),
-                    "B".to_string(),
-                    Money::new(10, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "F".to_string(),
-                    "B".to_string(),
-                    Money::new(17, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "J".to_string(),
-                    "K".to_string(),
-                    Money::new(20, "USD".to_string()),
-                )
-                .unwrap(),
-            );
-            ledger.add_transaction(
-                Transaction::new(
-                    "U".to_string(),
-                    "K".to_string(),
-                    Money::new(21, "USD".to_string()),
-                )
-                .unwrap(),
-            );
+            ledger.add_transaction(transaction!("A", "D", money!(3, "USD")));
+            ledger.add_transaction(transaction!("C", "D", money!(4, "USD")));
+            ledger.add_transaction(transaction!("E", "B", money!(10, "USD")));
+            ledger.add_transaction(transaction!("F", "B", money!(17, "USD")));
+            ledger.add_transaction(transaction!("J", "K", money!(20, "USD")));
+            ledger.add_transaction(transaction!("U", "K", money!(21, "USD")));
 
             let mut payments = ledger.settle(3);
             payments.sort();
@@ -660,7 +548,7 @@ mod tests {
         ledger
             .map
             .entry("A".to_string())
-            .or_insert(Money::new(10, "USD".to_string()));
+            .or_insert(money!(10, "USD"));
         ledger.settle(2);
     }
 
@@ -670,17 +558,16 @@ mod tests {
         let transaction = MultiPartyTransaction::new(
             vec!["A".to_string(), "B".to_string(), "C".to_string()],
             vec!["D".to_string()],
-            Money::new(10, "USD".to_string()),
+            money!(10, "USD"),
         )
         .unwrap();
         let mut ledger = Ledger::new();
         ledger.add_multi_party_transaction(transaction);
-        println!("{:?}", ledger.to_vector());
-        let ledger_balance = ledger
+        let remaining = ledger
             .to_vector()
             .into_iter()
-            .fold(Money::new(0, "USD".to_string()), |acc, x| acc + x.1);
-        assert_eq!(ledger_balance, Money::new(0, "USD".to_string()));
+            .fold(money!(0, "USD"), |acc, x| acc + x.1);
+        assert_eq!(remaining, money!(0, "USD"));
     }
 
     #[test]
@@ -688,7 +575,7 @@ mod tests {
         let transaction = MultiPartyTransaction::new(
             vec!["A".to_string()],
             vec!["B".to_string(), "C".to_string(), "D".to_string()],
-            Money::new(10, "USD".to_string()),
+            money!(10, "USD"),
         )
         .unwrap();
         let mut ledger = Ledger::new();
@@ -696,18 +583,14 @@ mod tests {
         let ledger_balance = ledger
             .to_vector()
             .into_iter()
-            .fold(Money::new(0, "USD".to_string()), |acc, x| acc + x.1);
-        assert_eq!(ledger_balance, Money::new(0, "USD".to_string()));
+            .fold(money!(0, "USD"), |acc, x| acc + x.1);
+        assert_eq!(ledger_balance, money!(0, "USD"));
     }
 
     // Transaction Tests
     #[test]
     fn can_create_positive_transaction() {
-        match Transaction::new(
-            "A".to_string(),
-            "B".to_string(),
-            Money::new(1, "USD".to_string()),
-        ) {
+        match Transaction::new("A".to_string(), "B".to_string(), money!(1, "USD")) {
             Ok(_) => assert!(true),
             Err(_) => assert!(false),
         };
@@ -715,11 +598,7 @@ mod tests {
 
     #[test]
     fn cannot_create_negative_transaction() {
-        match Transaction::new(
-            "A".to_string(),
-            "B".to_string(),
-            Money::new(-1, "USD".to_string()),
-        ) {
+        match Transaction::new("A".to_string(), "B".to_string(), money!(-1, "USD")) {
             Ok(_) => assert!(false),
             Err(_) => assert!(true),
         };
@@ -727,120 +606,85 @@ mod tests {
 
     #[test]
     fn cannot_create_zero_transaction() {
-        match Transaction::new(
-            "A".to_string(),
-            "B".to_string(),
-            Money::new(-1, "USD".to_string()),
-        ) {
+        match Transaction::new("A".to_string(), "B".to_string(), money!(0, "USD")) {
             Ok(_) => assert!(false),
             Err(_) => assert!(true),
         };
     }
 
     // Money Tests
-
     #[test]
     fn test_ops() {
         // Addition
-        assert_eq!(
-            Money::new(2, "USD".to_string()),
-            Money::new(1, "USD".to_string()) + Money::new(1, "USD".to_string())
-        );
+        assert_eq!(money!(2, "USD"), money!(1, "USD") + money!(1, "USD"));
         // Subtraction
-        assert_eq!(
-            Money::new(0, "USD".to_string()),
-            Money::new(1, "USD".to_string()) - Money::new(1, "USD".to_string())
-        );
+        assert_eq!(money!(0, "USD"), money!(1, "USD") - money!(1, "USD"));
         // Greater Than
-        assert_eq!(
-            true,
-            Money::new(2, "USD".to_string()) > Money::new(1, "USD".to_string())
-        );
+        assert_eq!(true, money!(2, "USD") > money!(1, "USD"));
         // Less Than
-        assert_eq!(
-            false,
-            Money::new(2, "USD".to_string()) < Money::new(1, "USD".to_string())
-        );
+        assert_eq!(false, money!(2, "USD") < money!(1, "USD"));
         // Equals
-        assert_eq!(
-            true,
-            Money::new(1, "USD".to_string()) == Money::new(1, "USD".to_string())
-        );
-        assert_eq!(
-            false,
-            Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string())
-        );
+        assert_eq!(true, money!(1, "USD") == money!(1, "USD"));
+        assert_eq!(false, money!(1, "USD") == money!(1, "GBP"));
         // is positive
-        assert_eq!(true, Money::new(1, "USD".to_string()).is_positive());
-        assert_eq!(false, Money::new(0, "USD".to_string()).is_positive());
-        assert_eq!(false, Money::new(-1, "USD".to_string()).is_positive());
+        assert_eq!(true, money!(1, "USD").is_positive());
+        assert_eq!(false, money!(0, "USD").is_positive());
+        assert_eq!(false, money!(-1, "USD").is_positive());
 
         // is zero
-        assert_eq!(true, Money::new(0, "USD".to_string()).is_zero());
-        assert_eq!(false, Money::new(1, "USD".to_string()).is_zero());
-        assert_eq!(false, Money::new(-1, "USD".to_string()).is_zero());
+        assert_eq!(true, money!(0, "USD").is_zero());
+        assert_eq!(false, money!(1, "USD").is_zero());
+        assert_eq!(false, money!(-1, "USD").is_zero());
 
         // is negative
-        assert_eq!(true, Money::new(-1, "USD".to_string()).is_negative());
-        assert_eq!(false, Money::new(1, "USD".to_string()).is_negative());
-        assert_eq!(false, Money::new(0, "USD".to_string()).is_negative());
+        assert_eq!(true, money!(-1, "USD").is_negative());
+        assert_eq!(false, money!(1, "USD").is_negative());
+        assert_eq!(false, money!(0, "USD").is_negative());
     }
 
     #[test]
     #[should_panic]
     fn greater_than_panics_on_different_currencies() {
-        assert!(Money::new(1, "USD".to_string()) < Money::new(1, "GBP".to_string()));
-        assert!(Money::new(1, "USD".to_string()) > Money::new(1, "GBP".to_string()));
-        assert!(Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string()));
+        assert!(money!(1, "USD") < money!(1, "GBP"));
     }
 
     #[test]
     #[should_panic]
     fn less_than_panics_on_different_currencies() {
-        assert!(Money::new(1, "USD".to_string()) < Money::new(1, "GBP".to_string()));
-        assert!(Money::new(1, "USD".to_string()) > Money::new(1, "GBP".to_string()));
-        assert!(Money::new(1, "USD".to_string()) == Money::new(1, "GBP".to_string()));
+        assert!(money!(1, "USD") < money!(1, "GBP"));
     }
 
     #[test]
     fn allocate() {
-        let money = Money::new(11, "USD".to_string());
+        let money = money!(11, "USD");
         let allocs = money.allocate(vec![1, 1, 1]);
-        let expected_results = vec![
-            Money::new(4, "USD".to_string()),
-            Money::new(4, "USD".to_string()),
-            Money::new(3, "USD".to_string()),
-        ];
+        let expected_results = vec![money!(4, "USD"), money!(4, "USD"), money!(3, "USD")];
         assert_eq!(expected_results, allocs);
     }
 
     #[test]
     #[should_panic]
     fn allocate_panics_if_empty() {
-        Money::new(1, "USD".to_string()).allocate(Vec::new());
+        money!(1, "USD").allocate(Vec::new());
     }
 
     #[test]
     #[should_panic]
     fn allocate_panics_any_ratio_is_zero() {
-        Money::new(1, "USD".to_string()).allocate(vec![1, 0]);
+        money!(1, "USD").allocate(vec![1, 0]);
     }
 
     #[test]
     fn allocate_to() {
-        let money = Money::new(11, "USD".to_string());
+        let money = money!(11, "USD");
         let allocs = money.allocate_to(3);
-        let expected_results = vec![
-            Money::new(4, "USD".to_string()),
-            Money::new(4, "USD".to_string()),
-            Money::new(3, "USD".to_string()),
-        ];
+        let expected_results = vec![money!(4, "USD"), money!(4, "USD"), money!(3, "USD")];
         assert_eq!(expected_results, allocs);
     }
 
     #[test]
     #[should_panic]
-    fn allocate_to_panics() {
-        Money::new(1, "USD".to_string()).allocate_to(0);
+    fn allocate_to_panics_when_zero() {
+        money!(1, "USD").allocate_to(0);
     }
 }
