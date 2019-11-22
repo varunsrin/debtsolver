@@ -86,29 +86,53 @@ use std::error::Error;
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+const USD_CURRENCY: Currency = Currency { name: "USD" };
+const GBP_CURRENCY: Currency = Currency { name: "GBP" };
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Currency {
+    name: &'static str,
+}
+
+impl fmt::Display for Currency {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl Currency {
+    pub fn new(name: String) -> Currency {
+        match &*name {
+            "USD" => USD_CURRENCY,
+            "GBP" => GBP_CURRENCY,
+            _ => panic!(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Money {
     amount: i32,
-    currency: String,
+    currency: Currency,
 }
 
 macro_rules! money {
     ($x:expr, $y:expr) => {
-        Money::new($x, $y.to_string())
+        Money::new($x, Currency::new($y.to_string()));
     };
 }
 
 impl Add for Money {
     type Output = Money;
     fn add(self, other: Money) -> Money {
-        Money::new(self.amount + other.amount, self.currency.clone())
+        Money::new(self.amount + other.amount, self.currency)
     }
 }
 
 impl Sub for Money {
     type Output = Money;
     fn sub(self, other: Money) -> Money {
-        Money::new(self.amount - other.amount, self.currency.clone())
+        Money::new(self.amount - other.amount, self.currency)
     }
 }
 
@@ -131,7 +155,7 @@ impl AddAssign for Money {
     fn add_assign(&mut self, other: Self) {
         *self = Self {
             amount: self.amount + other.amount,
-            currency: self.currency.clone(),
+            currency: self.currency,
         };
     }
 }
@@ -140,7 +164,7 @@ impl SubAssign for Money {
     fn sub_assign(&mut self, other: Self) {
         *self = Self {
             amount: self.amount - other.amount,
-            currency: self.currency.clone(),
+            currency: self.currency,
         };
     }
 }
@@ -152,7 +176,7 @@ impl fmt::Display for Money {
 }
 
 impl Money {
-    pub fn new(amount: i32, currency: String) -> Money {
+    pub fn new(amount: i32, currency: Currency) -> Money {
         Money { amount, currency }
     }
 
@@ -160,8 +184,8 @@ impl Money {
         self.amount
     }
 
-    pub fn currency(&self) -> &String {
-        &self.currency
+    pub fn currency(&self) -> &str {
+        &self.currency.name
     }
 
     pub fn allocate_to(&self, number: i32) -> Vec<Money> {
@@ -195,7 +219,7 @@ impl Money {
                 panic!();
             }
             let share = self.amount * ratio / ratio_total;
-            allocations.push(Money::new(share, self.currency.clone()));
+            allocations.push(Money::new(share, self.currency));
             remainder -= share;
         }
 
