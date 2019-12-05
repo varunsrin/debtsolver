@@ -79,12 +79,15 @@
 //! ```
 
 use itertools::Itertools;
+use rust_decimal::Decimal;
+use rust_decimal_macros::*;
 use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::str::FromStr;
 
 const USD_CURRENCY: Currency = Currency { name: "USD" };
 const GBP_CURRENCY: Currency = Currency { name: "GBP" };
@@ -108,17 +111,21 @@ impl Currency {
             _ => panic!(),
         }
     }
+
+    // Contain logic for pretty printing currency
+    // Contain data for decimal places, rounding and sub-units.
+    // Allow all ISO declared currencies.
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Money {
-    amount: i32,
+    amount: Decimal,
     currency: Currency,
 }
 
 macro_rules! money {
     ($x:expr, $y:expr) => {
-        Money::new($x, Currency::new($y.to_string()));
+        Money::from_string($x.to_string(), $y.to_string());
     };
 }
 
@@ -176,11 +183,55 @@ impl fmt::Display for Money {
 }
 
 impl Money {
-    pub fn new(amount: i32, currency: Currency) -> Money {
+    pub fn new(amount: Decimal, currency: Currency) -> Money {
         Money { amount, currency }
     }
 
-    pub fn amount(&self) -> i32 {
+    pub fn from_i64(amount: i64, currency: String) -> Money {
+        Money {
+            amount: Decimal::new(amount, 0),
+            currency: Currency::new(currency),
+        }
+    }
+
+    pub fn from_string(amount: String, currency: String) -> Money {
+        // TODO fetch these values from the current metadata when implemented.
+        let separator: char = ',';
+        let delimiter: char = '.';
+        let significant_digits = 2;
+
+        let amount_parts: Vec<&str> = amount.split(delimiter).collect();
+
+        fn panic_unless_integer(value: &str) {
+            match i32::from_str(value) {
+                Ok(_) => (),
+                // TODO update to match the right error cases
+                Err(_) => panic!("Could not parse"),
+            }
+        }
+
+        let mut parsed_decimal = amount_parts[0].replace(separator, "");
+        panic_unless_integer(&parsed_decimal);
+
+        if amount_parts.len() == 1 {
+            parsed_decimal += ".";
+            for _ in 0..significant_digits {
+                parsed_decimal += "0";
+            }
+        } else if amount_parts.len() == 2 {
+            panic_unless_integer(&amount_parts[1]);
+            parsed_decimal = parsed_decimal + "." + amount_parts[1];
+        } else {
+            panic!()
+        }
+
+        let decimal = Decimal::from_str(&parsed_decimal)
+            .unwrap()
+            .round_dp(significant_digits);
+        Money::new(decimal, Currency::new(currency))
+    }
+
+    pub fn amount(&self) -> Decimal {
         self.amount
     }
 
@@ -194,15 +245,15 @@ impl Money {
     }
 
     pub fn is_zero(&self) -> bool {
-        self.amount == 0
+        self.amount == dec!(0.0)
     }
 
     pub fn is_positive(&self) -> bool {
-        self.amount > 0
+        self.amount.is_sign_positive() && self.amount != dec!(0.0)
     }
 
     pub fn is_negative(&self) -> bool {
-        self.amount < 0
+        self.amount.is_sign_negative() && self.amount != dec!(0.0)
     }
 
     pub fn allocate(&self, ratios: Vec<i32>) -> Vec<Money> {
@@ -210,23 +261,39 @@ impl Money {
             panic!();
         }
 
+        let ratios_dec: Vec<Decimal> = ratios
+            .iter()
+            .map(|x| Decimal::from_str(&x.to_string()).unwrap().round_dp(0))
+            .collect();
+
         let mut remainder = self.amount;
-        let ratio_total: i32 = ratios.iter().sum();
+        let ratio_total: Decimal = ratios_dec.iter().fold(dec!(0.0), |acc, x| acc + x);
+
         let mut allocations: Vec<Money> = Vec::new();
 
-        for ratio in ratios {
-            if ratio <= 0 {
-                panic!();
+        for ratio in ratios_dec {
+            if ratio <= dec!(0.0) {
+                panic!("Ratio was zero or negative, should be positive");
             }
-            let share = self.amount * ratio / ratio_total;
+
+            let share = (self.amount * ratio / ratio_total).floor();
+
             allocations.push(Money::new(share, self.currency));
             remainder -= share;
         }
 
+        if remainder < dec!(0.0) {
+            panic!("Remainder was negative, should be 0 or positive");
+        }
+
+        if remainder - remainder.floor() != dec!(0.0) {
+            panic!("Remainder is not an integer, should be an integer");
+        }
+
         let mut i = 0;
-        while remainder > 0 {
-            allocations[i as usize].amount += 1;
-            remainder -= 1;
+        while remainder > dec!(0.0) {
+            allocations[i as usize].amount += dec!(1.0);
+            remainder -= dec!(1.0);
             i += 1;
         }
         allocations
@@ -450,16 +517,16 @@ impl Ledger {
                     let debt_abs = debtor_amount.amount.abs();
                     let payment_amount = cmp::min(credit_abs, debt_abs);
 
-                    debtor_amount += money!(payment_amount, "USD");
+                    debtor_amount += Money::new(payment_amount, Currency::new("USD".to_string()));
                     self.map.insert(debtor.clone(), debtor_amount.clone());
 
-                    creditor_amount -= money!(payment_amount, "USD");
+                    creditor_amount -= Money::new(payment_amount, Currency::new("USD".to_string()));
                     self.map.insert(creditor.clone(), creditor_amount.clone());
 
                     payments.push(transaction!(
                         debtor.clone(),
                         creditor.clone(),
-                        money!(payment_amount, "USD")
+                        Money::new(payment_amount, Currency::new("USD".to_string()))
                     ));
                 }
             }
@@ -623,7 +690,7 @@ mod tests {
     fn cannot_create_negative_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(-1, "USD")) {
             Ok(_) => assert!(false),
-            Err(_) => assert!(true),
+            Err(_) => assert!(true), // TODO: catch the right error here
         };
     }
 
@@ -631,11 +698,69 @@ mod tests {
     fn cannot_create_zero_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(0, "USD")) {
             Ok(_) => assert!(false),
-            Err(_) => assert!(true),
+            Err(_) => assert!(true), // TODO: catch the right error here
         };
     }
 
     // Money Tests
+
+    #[test]
+    fn money_from_string_parses_correctly() {
+        let expected_money = Money::new(Decimal::new(2999, 2), Currency::new("GBP".to_string()));
+        let money = Money::from_string("29.99".to_string(), "GBP".to_string());
+        assert_eq!(money, expected_money);
+    }
+
+    #[test]
+    fn money_from_string_rounds_to_significant_digits() {
+        let expected_money = Money::new(Decimal::new(30, 0), Currency::new("GBP".to_string()));
+        let money = Money::from_string("29.9999".to_string(), "GBP".to_string());
+        assert_eq!(money, expected_money);
+    }
+
+    #[test]
+    fn money_from_string_ignores_separators() {
+        let expected_money = Money::new(Decimal::new(1000000, 0), Currency::new("GBP".to_string()));
+        let money = Money::from_string("1,000,000".to_string(), "GBP".to_string());
+        assert_eq!(money, expected_money);
+    }
+
+    #[test]
+    #[should_panic]
+    fn money_from_string_panics_if_delimiter_preceeds_separator() {
+        Money::from_string("1.0000,000".to_string(), "GBP".to_string());
+    }
+
+    #[test]
+    #[should_panic]
+    fn money_from_string_panics_if_multiple_delimiters() {
+        Money::from_string("1.0000.000".to_string(), "GBP".to_string());
+    }
+
+    #[test]
+    #[should_panic]
+    fn money_from_string_panics_if_unrecognized_character() {
+        Money::from_string("1.0000!000".to_string(), "GBP".to_string());
+    }
+
+    #[test]
+    #[should_panic]
+    fn money_from_string_panics_if_only_separator() {
+        Money::from_string(",".to_string(), "GBP".to_string());
+    }
+
+    #[test]
+    #[should_panic]
+    fn money_from_string_panics_if_only_delimiters() {
+        Money::from_string(".".to_string(), "GBP".to_string());
+    }
+
+    #[test]
+    #[should_panic]
+    fn money_from_string_panics_if_only_separators_and_delimiters() {
+        Money::from_string(",,.".to_string(), "GBP".to_string());
+    }
+
     #[test]
     fn test_ops() {
         // Addition
