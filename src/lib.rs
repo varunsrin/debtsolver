@@ -79,226 +79,20 @@
 //! ```
 
 use itertools::Itertools;
-use rust_decimal::Decimal;
-use rust_decimal_macros::*;
 use std::cmp;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
-use std::str::FromStr;
+#[macro_use]
+mod money;
+use money::Currency;
+use money::Money;
 
-const USD_CURRENCY: Currency = Currency { name: "USD" };
-const GBP_CURRENCY: Currency = Currency { name: "GBP" };
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Currency {
-    name: &'static str,
-}
-
-impl fmt::Display for Currency {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
-
-impl Currency {
-    pub fn new(name: String) -> Currency {
-        match &*name {
-            "USD" => USD_CURRENCY,
-            "GBP" => GBP_CURRENCY,
-            _ => panic!(),
-        }
-    }
-
-    // Contain logic for pretty printing currency
-    // Contain data for decimal places, rounding and sub-units.
-    // Allow all ISO declared currencies.
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Money {
-    amount: Decimal,
-    currency: Currency,
-}
-
-macro_rules! money {
-    ($x:expr, $y:expr) => {
-        Money::from_string($x.to_string(), $y.to_string());
-    };
-}
-
-impl Add for Money {
-    type Output = Money;
-    fn add(self, other: Money) -> Money {
-        Money::new(self.amount + other.amount, self.currency)
-    }
-}
-
-impl Sub for Money {
-    type Output = Money;
-    fn sub(self, other: Money) -> Money {
-        Money::new(self.amount - other.amount, self.currency)
-    }
-}
-
-impl PartialOrd for Money {
-    fn partial_cmp(&self, other: &Money) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Money {
-    fn cmp(&self, other: &Money) -> Ordering {
-        if self.currency != other.currency {
-            panic!();
-        }
-        self.amount.cmp(&other.amount)
-    }
-}
-
-impl AddAssign for Money {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            amount: self.amount + other.amount,
-            currency: self.currency,
-        };
-    }
-}
-
-impl SubAssign for Money {
-    fn sub_assign(&mut self, other: Self) {
-        *self = Self {
-            amount: self.amount - other.amount,
-            currency: self.currency,
-        };
-    }
-}
-
-impl fmt::Display for Money {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.amount, self.currency)
-    }
-}
-
-impl Money {
-    pub fn new(amount: Decimal, currency: Currency) -> Money {
-        Money { amount, currency }
-    }
-
-    pub fn from_i64(amount: i64, currency: String) -> Money {
-        Money {
-            amount: Decimal::new(amount, 0),
-            currency: Currency::new(currency),
-        }
-    }
-
-    pub fn from_string(amount: String, currency: String) -> Money {
-        // TODO fetch these values from the current metadata when implemented.
-        let separator: char = ',';
-        let delimiter: char = '.';
-        let significant_digits = 2;
-
-        let amount_parts: Vec<&str> = amount.split(delimiter).collect();
-
-        fn panic_unless_integer(value: &str) {
-            match i32::from_str(value) {
-                Ok(_) => (),
-                // TODO update to match the right error cases
-                Err(_) => panic!("Could not parse"),
-            }
-        }
-
-        let mut parsed_decimal = amount_parts[0].replace(separator, "");
-        panic_unless_integer(&parsed_decimal);
-
-        if amount_parts.len() == 1 {
-            parsed_decimal += ".";
-            for _ in 0..significant_digits {
-                parsed_decimal += "0";
-            }
-        } else if amount_parts.len() == 2 {
-            panic_unless_integer(&amount_parts[1]);
-            parsed_decimal = parsed_decimal + "." + amount_parts[1];
-        } else {
-            panic!()
-        }
-
-        let decimal = Decimal::from_str(&parsed_decimal)
-            .unwrap()
-            .round_dp(significant_digits);
-        Money::new(decimal, Currency::new(currency))
-    }
-
-    pub fn amount(&self) -> Decimal {
-        self.amount
-    }
-
-    pub fn currency(&self) -> &str {
-        &self.currency.name
-    }
-
-    pub fn allocate_to(&self, number: i32) -> Vec<Money> {
-        let ratios: Vec<i32> = (0..number).map(|_| 1).collect();
-        self.allocate(ratios)
-    }
-
-    pub fn is_zero(&self) -> bool {
-        self.amount == dec!(0.0)
-    }
-
-    pub fn is_positive(&self) -> bool {
-        self.amount.is_sign_positive() && self.amount != dec!(0.0)
-    }
-
-    pub fn is_negative(&self) -> bool {
-        self.amount.is_sign_negative() && self.amount != dec!(0.0)
-    }
-
-    pub fn allocate(&self, ratios: Vec<i32>) -> Vec<Money> {
-        if ratios.is_empty() {
-            panic!();
-        }
-
-        let ratios_dec: Vec<Decimal> = ratios
-            .iter()
-            .map(|x| Decimal::from_str(&x.to_string()).unwrap().round_dp(0))
-            .collect();
-
-        let mut remainder = self.amount;
-        let ratio_total: Decimal = ratios_dec.iter().fold(dec!(0.0), |acc, x| acc + x);
-
-        let mut allocations: Vec<Money> = Vec::new();
-
-        for ratio in ratios_dec {
-            if ratio <= dec!(0.0) {
-                panic!("Ratio was zero or negative, should be positive");
-            }
-
-            let share = (self.amount * ratio / ratio_total).floor();
-
-            allocations.push(Money::new(share, self.currency));
-            remainder -= share;
-        }
-
-        if remainder < dec!(0.0) {
-            panic!("Remainder was negative, should be 0 or positive");
-        }
-
-        if remainder - remainder.floor() != dec!(0.0) {
-            panic!("Remainder is not an integer, should be an integer");
-        }
-
-        let mut i = 0;
-        while remainder > dec!(0.0) {
-            allocations[i as usize].amount += dec!(1.0);
-            remainder -= dec!(1.0);
-            i += 1;
-        }
-        allocations
-    }
-}
+// Branch TODOs
+// Audit all to-do's
+// Strict error and panic assertions (match type and message)
+// Extract Money, Currency into library.
+// Write documentation for Money.
 
 /// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -495,7 +289,7 @@ impl Ledger {
         transactions
     }
 
-    // Settles a specified list of debtors and creditors against in other, in random order.
+    // Settles a specified list of debtors and creditors, in random order.
     fn clear_given_keys(
         &mut self,
         debtors: Vec<String>,
@@ -513,8 +307,8 @@ impl Ledger {
                 // If either one is missing, try grabbing another creditor
                 // If you run out of creditors, grab another debtor and start again.
                 while (creditor_amount.is_positive()) && (debtor_amount.is_negative()) {
-                    let credit_abs = creditor_amount.amount.abs();
-                    let debt_abs = debtor_amount.amount.abs();
+                    let credit_abs = creditor_amount.amount().abs();
+                    let debt_abs = debtor_amount.amount().abs();
                     let payment_amount = cmp::min(credit_abs, debt_abs);
 
                     debtor_amount += Money::new(payment_amount, Currency::new("USD".to_string()));
@@ -575,7 +369,7 @@ mod tests {
     // This allows two entries in the ledger to be removed in exchange for a single payment.
     // For example, if A = -10 and B = +10, they should always first over any other possibility
     #[test]
-    fn matches_equal_debts_and_credits_when_groupsize_is_2() {
+    fn ledger_settle_matches_equal_debts_and_credits() {
         let mut ledger = Ledger::new();
 
         let expected_results = vec![
@@ -602,7 +396,7 @@ mod tests {
     // This allows three entries in the ledger to be removed in exchange for two payments.
     // For example, if A = -10,  B = +5, C= +5.
     #[test]
-    fn finds_groups_of_three_credits_and_debits_when_groupsize_is_3() {
+    fn ledger_settle_with_size_3_matches_groups_of_3_credits_and_debits() {
         // Test that group matched  payments are always settled first.
         let mut ledger = Ledger::new();
 
@@ -633,7 +427,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn panics_when_settling_unbalanced_ledger() {
+    fn ledger_settle_panics_if_unbalanced() {
         let mut ledger = Ledger::new();
         ledger
             .map
@@ -642,9 +436,12 @@ mod tests {
         ledger.settle(2);
     }
 
-    // Multi Party Transaction Tests
+    //
+    // Multi-Party Transaction Tests
+    //
+
     #[test]
-    fn can_handle_debtor_rounding() {
+    fn mptx_can_handle_debtor_rounding() {
         let transaction = MultiPartyTransaction::new(
             vec!["A".to_string(), "B".to_string(), "C".to_string()],
             vec!["D".to_string()],
@@ -661,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn can_handle_creditor_rounding() {
+    fn mptx_can_handle_creditor_rounding() {
         let transaction = MultiPartyTransaction::new(
             vec!["A".to_string()],
             vec!["B".to_string(), "C".to_string(), "D".to_string()],
@@ -677,9 +474,12 @@ mod tests {
         assert_eq!(ledger_balance, money!(0, "USD"));
     }
 
+    //
     // Transaction Tests
+    //
+
     #[test]
-    fn can_create_positive_transaction() {
+    fn tx_can_create_positive_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(1, "USD")) {
             Ok(_) => assert!(true),
             Err(_) => assert!(false),
@@ -687,152 +487,15 @@ mod tests {
     }
 
     #[test]
-    fn cannot_create_negative_transaction() {
+    fn tx_cannot_create_non_positive_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(-1, "USD")) {
             Ok(_) => assert!(false),
             Err(_) => assert!(true), // TODO: catch the right error here
         };
-    }
 
-    #[test]
-    fn cannot_create_zero_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(0, "USD")) {
             Ok(_) => assert!(false),
             Err(_) => assert!(true), // TODO: catch the right error here
         };
-    }
-
-    // Money Tests
-
-    #[test]
-    fn money_from_string_parses_correctly() {
-        let expected_money = Money::new(Decimal::new(2999, 2), Currency::new("GBP".to_string()));
-        let money = Money::from_string("29.99".to_string(), "GBP".to_string());
-        assert_eq!(money, expected_money);
-    }
-
-    #[test]
-    fn money_from_string_rounds_to_significant_digits() {
-        let expected_money = Money::new(Decimal::new(30, 0), Currency::new("GBP".to_string()));
-        let money = Money::from_string("29.9999".to_string(), "GBP".to_string());
-        assert_eq!(money, expected_money);
-    }
-
-    #[test]
-    fn money_from_string_ignores_separators() {
-        let expected_money = Money::new(Decimal::new(1000000, 0), Currency::new("GBP".to_string()));
-        let money = Money::from_string("1,000,000".to_string(), "GBP".to_string());
-        assert_eq!(money, expected_money);
-    }
-
-    #[test]
-    #[should_panic]
-    fn money_from_string_panics_if_delimiter_preceeds_separator() {
-        Money::from_string("1.0000,000".to_string(), "GBP".to_string());
-    }
-
-    #[test]
-    #[should_panic]
-    fn money_from_string_panics_if_multiple_delimiters() {
-        Money::from_string("1.0000.000".to_string(), "GBP".to_string());
-    }
-
-    #[test]
-    #[should_panic]
-    fn money_from_string_panics_if_unrecognized_character() {
-        Money::from_string("1.0000!000".to_string(), "GBP".to_string());
-    }
-
-    #[test]
-    #[should_panic]
-    fn money_from_string_panics_if_only_separator() {
-        Money::from_string(",".to_string(), "GBP".to_string());
-    }
-
-    #[test]
-    #[should_panic]
-    fn money_from_string_panics_if_only_delimiters() {
-        Money::from_string(".".to_string(), "GBP".to_string());
-    }
-
-    #[test]
-    #[should_panic]
-    fn money_from_string_panics_if_only_separators_and_delimiters() {
-        Money::from_string(",,.".to_string(), "GBP".to_string());
-    }
-
-    #[test]
-    fn test_ops() {
-        // Addition
-        assert_eq!(money!(2, "USD"), money!(1, "USD") + money!(1, "USD"));
-        // Subtraction
-        assert_eq!(money!(0, "USD"), money!(1, "USD") - money!(1, "USD"));
-        // Greater Than
-        assert_eq!(true, money!(2, "USD") > money!(1, "USD"));
-        // Less Than
-        assert_eq!(false, money!(2, "USD") < money!(1, "USD"));
-        // Equals
-        assert_eq!(true, money!(1, "USD") == money!(1, "USD"));
-        assert_eq!(false, money!(1, "USD") == money!(1, "GBP"));
-        // is positive
-        assert_eq!(true, money!(1, "USD").is_positive());
-        assert_eq!(false, money!(0, "USD").is_positive());
-        assert_eq!(false, money!(-1, "USD").is_positive());
-
-        // is zero
-        assert_eq!(true, money!(0, "USD").is_zero());
-        assert_eq!(false, money!(1, "USD").is_zero());
-        assert_eq!(false, money!(-1, "USD").is_zero());
-
-        // is negative
-        assert_eq!(true, money!(-1, "USD").is_negative());
-        assert_eq!(false, money!(1, "USD").is_negative());
-        assert_eq!(false, money!(0, "USD").is_negative());
-    }
-
-    #[test]
-    #[should_panic]
-    fn greater_than_panics_on_different_currencies() {
-        assert!(money!(1, "USD") < money!(1, "GBP"));
-    }
-
-    #[test]
-    #[should_panic]
-    fn less_than_panics_on_different_currencies() {
-        assert!(money!(1, "USD") < money!(1, "GBP"));
-    }
-
-    #[test]
-    fn allocate() {
-        let money = money!(11, "USD");
-        let allocs = money.allocate(vec![1, 1, 1]);
-        let expected_results = vec![money!(4, "USD"), money!(4, "USD"), money!(3, "USD")];
-        assert_eq!(expected_results, allocs);
-    }
-
-    #[test]
-    #[should_panic]
-    fn allocate_panics_if_empty() {
-        money!(1, "USD").allocate(Vec::new());
-    }
-
-    #[test]
-    #[should_panic]
-    fn allocate_panics_any_ratio_is_zero() {
-        money!(1, "USD").allocate(vec![1, 0]);
-    }
-
-    #[test]
-    fn allocate_to() {
-        let money = money!(11, "USD");
-        let allocs = money.allocate_to(3);
-        let expected_results = vec![money!(4, "USD"), money!(4, "USD"), money!(3, "USD")];
-        assert_eq!(expected_results, allocs);
-    }
-
-    #[test]
-    #[should_panic]
-    fn allocate_to_panics_when_zero() {
-        money!(1, "USD").allocate_to(0);
     }
 }
