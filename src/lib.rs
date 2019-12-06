@@ -1,6 +1,6 @@
 //! Track and settle debts between parties with the fewest transactions.
 //!
-//! Debtsolves gives you two structs - Transactions, which track payments that
+//! Debtsolver gives you two structs - Transactions, which track payments that
 //! have been made or need to be made, and a Ledger which can store and balance
 //! the current states of credits and debits between everyone.
 //!
@@ -77,22 +77,18 @@
 //!     // Bob owes Alice 15
 //!     // Bob owes Charlie 15
 //! ```
-
 use itertools::Itertools;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-#[macro_use]
-mod money;
+use money::money; 
 use money::Currency;
 use money::Money;
 
 // Branch TODOs
 // Audit all to-do's
 // Strict error and panic assertions (match type and message)
-// Extract Money, Currency into library.
-// Write documentation for Money.
 
 /// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
