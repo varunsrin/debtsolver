@@ -10,7 +10,7 @@
 //! For example, if Bob borrows 10 from Alice, you would track that as:
 //!
 //! ```edition2018
-//! transaction = Transaction::new(debtor: "Alice".to_string, creditor: "Bob".to_string, amount: 10)
+//! transaction = transaction!("Alice", "Bob", money!(10, "USD")));
 //! ```
 //!
 //! Legders are created empty, and you can add transactions to them to track the current state of
@@ -28,14 +28,14 @@
 //! for transaction in ledger.to_vector(){
 //!     println!("{}", transaction)
 //! };
-//! // (Alice, Bob, 10)
+//! // (Alice, Bob, 10 USD)
 //! ```
 //!
 //! Once all the debts are tracked, and you want to figure out the fastest way for debtors to pay
 //! back creditors, you can simply call settle:
 //!
 //! ```edition2018
-//! let payments = ledger.settle(3);
+//! let payments = ledger.settle();
 //! ```
 //!   
 //!
@@ -51,10 +51,10 @@
 //!     // Let's say that:
 //!     // Alice paid 20 for Bob's lunch
 //!     // Bob paid 20 for Charlie's dinner the next day.
-//!     ledger.add_transaction(Transaction::new("Alice".to_string(), "Bob".to_string(), 20).unwrap());
-//!     ledger.add_transaction(Transaction::new("Bob".to_string(), "Charlie".to_string(), 20).unwrap());
+//!     ledger.add_transaction(transaction!("Alice", "Bob", money!(20, "USD")));
+//!     ledger.add_transaction(transaction!("Bob", "Charlie", money!(20, "USD")));
 //!
-//!     for payment in ledger.settle(3) {
+//!     for payment in ledger.settle() {
 //!         println!("{}", payment)
 //!     }
 //!     // Debtsolver will resolve this with one payment:
@@ -65,12 +65,12 @@
 //!     //   Bob paid for Alice's breakfast (20).
 //!     //   Charlie paid for Bob's lunch (50).
 //!     //   Alice paid for Charlie's dinner (35).
-//!     ledger.add_transaction(Transaction::new("Alice".to_string(), "Bob".to_string(), 20).unwrap());
-//!     ledger.add_transaction(Transaction::new("Bob".to_string(), "Charlie".to_string(), 50).unwrap());
-//!     ledger.add_transaction(Transaction::new("Charlie".to_string(), "Alice".to_string(), 35).unwrap());
-//!    
+//!     ledger.add_transaction(transaction!("Alice", "Bob", money!(20, "USD")));
+//!     ledger.add_transaction(transaction!("Bob", "Charlie", money!(50, "USD")));
+//!     ledger.add_transaction(transaction!("Charlie", "Alice", money!(35, "USD")));
 //!
-//!     for payment in ledger.settle(3) {
+//!
+//!     for payment in ledger.settle() {
 //!         println!("{}", payment)
 //!     }
 //!     //Debtsolver will resolve this with just two payments:
@@ -78,13 +78,13 @@
 //!     // Bob owes Charlie 15
 //! ```
 use itertools::Itertools;
+use rusty_money::money;
+use rusty_money::Currency;
+use rusty_money::Money;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use rusty_money::money; 
-use rusty_money::Currency;
-use rusty_money::Money;
 
 /// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -235,7 +235,6 @@ impl Ledger {
         payments.append(&mut self.clear_all_entries());
         payments
     }
-
 
     // Converts the ledger from a hashmap into a set of vector-tuples containing the
     // debtor/creditor and the amount. Debts are negative, and credits are positive.

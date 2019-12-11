@@ -14,10 +14,10 @@ fn main() {
     // Let's say that:
     // Alice paid 20 for Bob's lunch
     // Bob paid 20 for Charlie's dinner the next day.
-    ledger.add_transaction(Transaction::new("Alice".to_string(), "Bob".to_string(), 20).unwrap());
-    ledger.add_transaction(Transaction::new("Bob".to_string(), "Charlie".to_string(), 20).unwrap());
+    ledger.add_transaction(transaction!("Alice", "Bob", money!(20, "USD")));
+    ledger.add_transaction(transaction!("Bob", "Charlie", money!(20, "USD")));
 
-    for payment in ledger.settle(3) {
+    for payment in ledger.settle() {
         println!("{}", payment)
     } 
     // Debtsolver will resolve this with one payment:
@@ -28,12 +28,12 @@ fn main() {
     //   Bob paid for Alice's breakfast (20).
     //   Charlie paid for Bob's lunch (50).
     //   Alice paid for Charlie's dinner (35).
-    ledger.add_transaction(Transaction::new("Alice".to_string(), "Bob".to_string(), 20).unwrap());
-    ledger.add_transaction(Transaction::new("Bob".to_string(), "Charlie".to_string(), 50).unwrap());
-    ledger.add_transaction(Transaction::new("Charlie".to_string(), "Alice".to_string(), 35).unwrap());
+    ledger.add_transaction(transaction!("Alice", "Bob", money!(20, "USD")));
+    ledger.add_transaction(transaction!("Bob", "Charlie", money!(50, "USD")));
+    ledger.add_transaction(transaction!("Charlie", "Alice", money!(35, "USD")));
     
 
-    for payment in ledger.settle(3) {
+    for payment in ledger.settle() {
         println!("{}", payment)
     } 
     // Debtsolver will resolve this with just two payments:

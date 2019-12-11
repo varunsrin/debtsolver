@@ -1,18 +1,18 @@
 # Change Log
 
 ## [Unreleased]
-* Transaction API: Multiparty debts in 1 transaction. (e.g. Alice & Bob paid 50 for a dinner shared between Alice, Bob, Charlie and Danielle)
-* Use a rich 'Money' Type that handles rounding and currency metadata. 
-* Settle API: Auto-detect best group-size, and provide API for manual sizing.
+
+### v0.2.0 - 2019-12-11
+
+* Multi-party Transactions: Track transactions with multiple debtors and creditors (e.g. Alice & Bob paid 50 for a dinner shared between Alice, Bob and Charlie)
+* Settle now automatically sizes for the fewest transactions, and settle_upto accepts manual sizes. 
+* Monetary amounts are now tracked as 'Money' objects instead of integers, using the rusty_money gem
 
 ## [0.1.0] - 2019-11-19
 
 * Initial Release
 
 ## [Planned]
-
-### v0.2.0
-
 
 ### v0.3.0
 * Implement a true subset sum solution: https://pure.tue.nl/ws/files/2062204/623903.pdf

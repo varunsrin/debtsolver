@@ -1,6 +1,6 @@
 [package]
 name = "debtsolver"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Varun Srinivasan <varunsrin@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -10,7 +10,7 @@ documentation = "https://docs.rs/debtsolver"
 description = """
 Track and settle debts between parties with the fewest transactions. 
 """
-categories = ["crates.io/category_slugs"]
+categories = ["algorithms"]
 keywords = ["payments", "debts", "minimize", "reduce"]
 
 
