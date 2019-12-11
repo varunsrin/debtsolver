@@ -82,9 +82,9 @@ use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use money::money; 
-use money::Currency;
-use money::Money;
+use rusty_money::money; 
+use rusty_money::Currency;
+use rusty_money::Money;
 
 // Branch TODOs
 // Audit all to-do's
