@@ -16,3 +16,5 @@ keywords = ["payments", "debts", "minimize", "reduce"]
 
 [dependencies]
 itertools = "0.8.1"
+rusty-money = "0.1.0"
+
