@@ -86,10 +86,6 @@ use rusty_money::money;
 use rusty_money::Currency;
 use rusty_money::Money;
 
-// Branch TODOs
-// Audit all to-do's
-// Strict error and panic assertions (match type and message)
-
 /// Represents a transaction where one party (debtor) pays another (creditor) the amount specified.
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Transaction {
@@ -221,10 +217,15 @@ impl Ledger {
         }
     }
 
-    /// Returns the smallest possible set of  transactions that will resolve all debts.
+    /// Returns the smallest possible set of transactions that will resolve all debts.
+    pub fn settle(&mut self) -> Vec<Transaction> {
+        self.settle_upto(self.map.len() - 1)
+    }
+
+    /// Finds the smallest possible set of transactions that will resolve all debts, given a group size.
     /// This ranges between n/2 (best case) and n-1 (worst case), where n is the number of
     /// debtors and creditors.
-    pub fn settle(&mut self, group_size: usize) -> Vec<Transaction> {
+    pub fn settle_upto(&mut self, group_size: usize) -> Vec<Transaction> {
         let mut payments: Vec<Transaction> = Vec::new();
         if group_size > 0 {
             for x in 1..=group_size {
@@ -234,6 +235,7 @@ impl Ledger {
         payments.append(&mut self.clear_all_entries());
         payments
     }
+
 
     // Converts the ledger from a hashmap into a set of vector-tuples containing the
     // debtor/creditor and the amount. Debts are negative, and credits are positive.
@@ -382,7 +384,7 @@ mod tests {
             ledger.add_transaction(transaction!("C", "F", money!(3, "USD")));
             ledger.add_transaction(transaction!("D", "F", money!(5, "USD")));
             ledger.add_transaction(transaction!("E", "F", money!(7, "USD")));
-            let mut payments = ledger.settle(2);
+            let mut payments = ledger.settle();
             payments.sort();
             assert_eq!(payments, expected_results);
         }
@@ -415,7 +417,7 @@ mod tests {
             ledger.add_transaction(transaction!("J", "K", money!(20, "USD")));
             ledger.add_transaction(transaction!("U", "K", money!(21, "USD")));
 
-            let mut payments = ledger.settle(3);
+            let mut payments = ledger.settle();
             payments.sort();
             assert_eq!(payments, expected_results);
         }
@@ -429,13 +431,12 @@ mod tests {
             .map
             .entry("A".to_string())
             .or_insert(money!(10, "USD"));
-        ledger.settle(2);
+        ledger.settle();
     }
 
     //
     // Multi-Party Transaction Tests
     //
-
     #[test]
     fn mptx_can_handle_debtor_rounding() {
         let transaction = MultiPartyTransaction::new(
@@ -473,7 +474,6 @@ mod tests {
     //
     // Transaction Tests
     //
-
     #[test]
     fn tx_can_create_positive_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(1, "USD")) {
@@ -486,12 +486,12 @@ mod tests {
     fn tx_cannot_create_non_positive_transaction() {
         match Transaction::new("A".to_string(), "B".to_string(), money!(-1, "USD")) {
             Ok(_) => assert!(false),
-            Err(_) => assert!(true), // TODO: catch the right error here
+            Err(_) => assert!(true),
         };
 
         match Transaction::new("A".to_string(), "B".to_string(), money!(0, "USD")) {
             Ok(_) => assert!(false),
-            Err(_) => assert!(true), // TODO: catch the right error here
+            Err(_) => assert!(true),
         };
     }
 }
