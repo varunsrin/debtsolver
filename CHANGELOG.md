@@ -16,3 +16,4 @@
 
 ### v0.3.0
 * Implement a true subset sum solution: https://pure.tue.nl/ws/files/2062204/623903.pdf
+* Support subunits in currency calculations.

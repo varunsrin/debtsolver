@@ -10,7 +10,7 @@
 //! For example, if Bob borrows 10 from Alice, you would track that as:
 //!
 //! ```edition2018
-//! transaction = transaction!("Alice", "Bob", 10));
+//! transaction = transaction!("Alice", "Bob", (10, "USD")));
 //! ```
 //!
 //! Legders are created empty, and you can add transactions to them to track the current state of
@@ -44,6 +44,7 @@
 //!
 //! use debtsolver::Ledger;
 //! use debtsolver::Transaction;
+//! use debtsolver::transaction;
 //!
 //! fn main() {
 //!     let mut ledger = Ledger::new();
@@ -51,31 +52,31 @@
 //!     // Let's say that:
 //!     // Alice paid 20 for Bob's lunch
 //!     // Bob paid 20 for Charlie's dinner the next day.
-//!     ledger.add_transaction(transaction!("Alice", "Bob", 20));
-//!     ledger.add_transaction(transaction!("Bob", "Charlie", 20));
+//!     ledger.add_transaction(transaction!("Alice", "Bob", (20, "USD")));
+//!     ledger.add_transaction(transaction!("Bob", "Charlie", (20, "USD")));
 //!
 //!     for payment in ledger.settle() {
 //!         println!("{}", payment)
 //!     }
 //!     // Debtsolver will resolve this with one payment:
-//!     // Alice owes Charlie 2
+//!     // Alice owes Charlie 20.00 USD
 //!
 //!
 //!     // Now lets say that:
 //!     //   Bob paid for Alice's breakfast (20).
 //!     //   Charlie paid for Bob's lunch (50).
 //!     //   Alice paid for Charlie's dinner (35).
-//!     ledger.add_transaction(transaction!("Alice", "Bob", 20));
-//!     ledger.add_transaction(transaction!("Bob", "Charlie", 50));
-//!     ledger.add_transaction(transaction!("Charlie", "Alice", 35));
+//!     ledger.add_transaction(transaction!("Alice", "Bob", (20, "USD")));
+//!     ledger.add_transaction(transaction!("Bob", "Charlie", (50, "USD")));
+//!     ledger.add_transaction(transaction!("Charlie", "Alice", (35, "USD")));
 //!
 //!
 //!     for payment in ledger.settle() {
 //!         println!("{}", payment)
 //!     }
 //!     //Debtsolver will resolve this with just two payments:
-//!     // Bob owes Alice 15
-//!     // Bob owes Charlie 15
+//!     // Bob owes Alice 15.00 USD
+//!     // Bob owes Charlie 15.00 USD
 //! ```
 use itertools::Itertools;
 use rusty_money::money;
