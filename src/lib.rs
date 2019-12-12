@@ -10,7 +10,7 @@
 //! For example, if Bob borrows 10 from Alice, you would track that as:
 //!
 //! ```edition2018
-//! transaction = transaction!("Alice", "Bob", money!(10, "USD")));
+//! transaction = transaction!("Alice", "Bob", 10));
 //! ```
 //!
 //! Legders are created empty, and you can add transactions to them to track the current state of
@@ -51,8 +51,8 @@
 //!     // Let's say that:
 //!     // Alice paid 20 for Bob's lunch
 //!     // Bob paid 20 for Charlie's dinner the next day.
-//!     ledger.add_transaction(transaction!("Alice", "Bob", money!(20, "USD")));
-//!     ledger.add_transaction(transaction!("Bob", "Charlie", money!(20, "USD")));
+//!     ledger.add_transaction(transaction!("Alice", "Bob", 20));
+//!     ledger.add_transaction(transaction!("Bob", "Charlie", 20));
 //!
 //!     for payment in ledger.settle() {
 //!         println!("{}", payment)
@@ -65,9 +65,9 @@
 //!     //   Bob paid for Alice's breakfast (20).
 //!     //   Charlie paid for Bob's lunch (50).
 //!     //   Alice paid for Charlie's dinner (35).
-//!     ledger.add_transaction(transaction!("Alice", "Bob", money!(20, "USD")));
-//!     ledger.add_transaction(transaction!("Bob", "Charlie", money!(50, "USD")));
-//!     ledger.add_transaction(transaction!("Charlie", "Alice", money!(35, "USD")));
+//!     ledger.add_transaction(transaction!("Alice", "Bob", 20));
+//!     ledger.add_transaction(transaction!("Bob", "Charlie", 50));
+//!     ledger.add_transaction(transaction!("Charlie", "Alice", 35));
 //!
 //!
 //!     for payment in ledger.settle() {
@@ -94,9 +94,10 @@ pub struct Transaction {
     amount: Money,
 }
 
+#[macro_export]
 macro_rules! transaction {
     ($x:expr, $y:expr, $z:expr) => {
-        Transaction::new($x.to_string(), $y.to_string(), $z).unwrap()
+        Transaction::from_tuple($x.to_string(), $y.to_string(), $z).unwrap()
     };
 }
 
@@ -110,6 +111,16 @@ impl Transaction {
             creditor,
             amount,
         })
+    }
+
+    pub fn from_tuple(
+        debtor: String,
+        creditor: String,
+        amount: (i32, &str),
+    ) -> Result<Self, ParseAmountError> {
+        let (value, currency) = amount;
+        let money_amount = Money::from_string(value.to_string(), currency.to_string());
+        Transaction::new(debtor, creditor, money_amount)
     }
 }
 
@@ -314,11 +325,14 @@ impl Ledger {
                     creditor_amount -= Money::new(payment_amount, Currency::new("USD".to_string()));
                     self.map.insert(creditor.clone(), creditor_amount.clone());
 
-                    payments.push(transaction!(
-                        debtor.clone(),
-                        creditor.clone(),
-                        Money::new(payment_amount, Currency::new("USD".to_string()))
-                    ));
+                    payments.push(
+                        Transaction::new(
+                            debtor.clone(),
+                            creditor.clone(),
+                            money!(payment_amount, "USD"),
+                        )
+                        .unwrap(),
+                    );
                 }
             }
         }
@@ -370,19 +384,19 @@ mod tests {
         let mut ledger = Ledger::new();
 
         let expected_results = vec![
-            transaction!("A", "B", money!(2, "USD")),
-            transaction!("C", "F", money!(3, "USD")),
-            transaction!("D", "F", money!(5, "USD")),
-            transaction!("E", "F", money!(7, "USD")),
+            transaction!("A", "B", (2, "USD")),
+            transaction!("C", "F", (3, "USD")),
+            transaction!("D", "F", (5, "USD")),
+            transaction!("E", "F", (7, "USD")),
         ];
 
         // The worst case match (i.e. random) can accidentially find the optimal solution for small
         // sets, so we repeat to make this very unlikely
         for _ in 0..5 {
-            ledger.add_transaction(transaction!("A", "B", money!(2, "USD")));
-            ledger.add_transaction(transaction!("C", "F", money!(3, "USD")));
-            ledger.add_transaction(transaction!("D", "F", money!(5, "USD")));
-            ledger.add_transaction(transaction!("E", "F", money!(7, "USD")));
+            ledger.add_transaction(transaction!("A", "B", (2, "USD")));
+            ledger.add_transaction(transaction!("C", "F", (3, "USD")));
+            ledger.add_transaction(transaction!("D", "F", (5, "USD")));
+            ledger.add_transaction(transaction!("E", "F", (7, "USD")));
             let mut payments = ledger.settle();
             payments.sort();
             assert_eq!(payments, expected_results);
@@ -398,23 +412,23 @@ mod tests {
         let mut ledger = Ledger::new();
 
         let expected_results = vec![
-            transaction!("A", "D", money!(3, "USD")),
-            transaction!("C", "D", money!(4, "USD")),
-            transaction!("E", "B", money!(10, "USD")),
-            transaction!("F", "B", money!(17, "USD")),
-            transaction!("J", "K", money!(20, "USD")),
-            transaction!("U", "K", money!(21, "USD")),
+            transaction!("A", "D", (3, "USD")),
+            transaction!("C", "D", (4, "USD")),
+            transaction!("E", "B", (10, "USD")),
+            transaction!("F", "B", (17, "USD")),
+            transaction!("J", "K", (20, "USD")),
+            transaction!("U", "K", (21, "USD")),
         ];
 
         // The worst case match (i.e. random) can accidentially find the optimal solution for small
         // sets, so we repeat to make this very unlikely
         for _ in 0..5 {
-            ledger.add_transaction(transaction!("A", "D", money!(3, "USD")));
-            ledger.add_transaction(transaction!("C", "D", money!(4, "USD")));
-            ledger.add_transaction(transaction!("E", "B", money!(10, "USD")));
-            ledger.add_transaction(transaction!("F", "B", money!(17, "USD")));
-            ledger.add_transaction(transaction!("J", "K", money!(20, "USD")));
-            ledger.add_transaction(transaction!("U", "K", money!(21, "USD")));
+            ledger.add_transaction(transaction!("A", "D", (3, "USD")));
+            ledger.add_transaction(transaction!("C", "D", (4, "USD")));
+            ledger.add_transaction(transaction!("E", "B", (10, "USD")));
+            ledger.add_transaction(transaction!("F", "B", (17, "USD")));
+            ledger.add_transaction(transaction!("J", "K", (20, "USD")));
+            ledger.add_transaction(transaction!("U", "K", (21, "USD")));
 
             let mut payments = ledger.settle();
             payments.sort();
