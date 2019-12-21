@@ -79,9 +79,9 @@
 //!     // Bob owes Charlie 15.00 USD
 //! ```
 use itertools::Itertools;
-use rusty_money::money;
 use rusty_money::Currency;
 use rusty_money::Money;
+use rusty_money::money;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
@@ -320,10 +320,10 @@ impl Ledger {
                     let debt_abs = debtor_amount.amount().abs();
                     let payment_amount = cmp::min(credit_abs, debt_abs);
 
-                    debtor_amount += Money::new(payment_amount, Currency::new("USD".to_string()));
+                    debtor_amount += Money::new(payment_amount, Currency::find("USD".to_string()));
                     self.map.insert(debtor.clone(), debtor_amount.clone());
 
-                    creditor_amount -= Money::new(payment_amount, Currency::new("USD".to_string()));
+                    creditor_amount -= Money::new(payment_amount, Currency::find("USD".to_string()));
                     self.map.insert(creditor.clone(), creditor_amount.clone());
 
                     payments.push(
