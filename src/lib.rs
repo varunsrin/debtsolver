@@ -82,6 +82,7 @@ use itertools::Itertools;
 use rusty_money::Currency;
 use rusty_money::Money;
 use rusty_money::money;
+use rusty_money::Iso::*;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
@@ -120,7 +121,7 @@ impl Transaction {
         amount: (i32, &str),
     ) -> Result<Self, ParseAmountError> {
         let (value, currency) = amount;
-        let money_amount = Money::from_string(value.to_string(), currency.to_string());
+        let money_amount = Money::from_string(value.to_string(), currency.to_string()).unwrap();
         Transaction::new(debtor, creditor, money_amount)
     }
 }
@@ -215,14 +216,14 @@ impl Ledger {
 
     pub fn add_multi_party_transaction(&mut self, transaction: MultiPartyTransaction) {
         let num_debtors = transaction.debtors.len() as i32;
-        let mut debt_shares = transaction.amount.allocate_to(num_debtors);
+        let mut debt_shares = transaction.amount.allocate_to(num_debtors).unwrap();
         for debtor in transaction.debtors {
             *self.map.entry(debtor).or_insert_with(|| money!(0, "USD")) -=
                 debt_shares.pop().unwrap();
         }
 
         let num_creditors = transaction.creditors.len() as i32;
-        let mut credit_shares = transaction.amount.allocate_to(num_creditors);
+        let mut credit_shares = transaction.amount.allocate_to(num_creditors).unwrap();
         for creditor in transaction.creditors {
             *self.map.entry(creditor).or_insert_with(|| money!(0, "USD")) +=
                 credit_shares.pop().unwrap();
@@ -320,10 +321,10 @@ impl Ledger {
                     let debt_abs = debtor_amount.amount().abs();
                     let payment_amount = cmp::min(credit_abs, debt_abs);
 
-                    debtor_amount += Money::new(payment_amount, Currency::find("USD".to_string()));
+                    debtor_amount += Money::from_decimal(payment_amount, Currency::get(USD));
                     self.map.insert(debtor.clone(), debtor_amount.clone());
 
-                    creditor_amount -= Money::new(payment_amount, Currency::find("USD".to_string()));
+                    creditor_amount -= Money::from_decimal(payment_amount, Currency::get(USD));
                     self.map.insert(creditor.clone(), creditor_amount.clone());
 
                     payments.push(

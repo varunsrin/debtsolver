@@ -15,6 +15,6 @@ keywords = ["payments", "debts", "minimize", "reduce"]
 
 
 [dependencies]
-itertools = "0.8.1"
-rusty-money = "0.2.0"
+itertools = "0.8.2"
+rusty-money = "0.3.0"
 
